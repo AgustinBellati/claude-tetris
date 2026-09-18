@@ -25,6 +25,7 @@ Implementación del clásico **Tetris** en JavaScript vanilla, usando HTML5 Canv
   - [Tecnologías](#tecnologías)
   - [Estructura del proyecto](#estructura-del-proyecto)
   - [Personalización](#personalización)
+  - [Automatizaciones: triage de issues con Claude](#automatizaciones-triage-de-issues-con-claude)
   - [Licencia](#licencia)
 
 ---
@@ -178,6 +179,29 @@ Algunos parámetros fáciles de tunear en `game.js`:
 | `dropInterval` | Velocidad inicial de caída en ms         | `1000`                |
 
 > Si cambias `COLS`, `ROWS` o `BLOCK`, recuerda ajustar también `width` y `height` del `<canvas id="board">` en `index.html` para que coincida (`COLS × BLOCK` × `ROWS × BLOCK`).
+
+---
+
+## Automatizaciones: triage de issues con Claude
+
+El repo incluye un GitHub Action (`.github/workflows/claude-issue-triage.yml`) que corre
+automáticamente cada vez que se **crea** o se **edita** el título/cuerpo de un issue. Claude:
+
+1. Lee el issue y el código relevante de `game.js` / `index.html` / `style.css`.
+2. Aplica labels de tipo (`bug`, `enhancement`, `documentation`, `question`), área
+   (`area:gameplay`, `area:render`, `area:input`, `area:scoring`, `area:ui`) y, si es un bug,
+   prioridad (`P1`/`P2`/`P3`).
+3. Publica (o actualiza) un único comentario de diagnóstico técnico: resumen, función(es) de
+   `game.js` involucradas, causa probable y enfoque de solución sugerido — pensado como punto de
+   partida para escribir el fix, no como el fix en sí.
+
+El prompt vive en `.claude/commands/triage-issue.md` y las acciones de escritura pasan por
+scripts acotados en `scripts/` (`edit-issue-labels.sh`, `upsert-issue-comment.sh`) para que
+Claude solo pueda tocar labels existentes y su propio comentario en el issue que disparó la
+corrida. Las labels de área/prioridad se crean una única vez con `scripts/setup-labels.sh`.
+
+Issues que mencionan `@claude` en el título o cuerpo no pasan por este workflow: los atiende
+`.github/workflows/claude.yml`, que responde directamente a la mención.
 
 ---
 
