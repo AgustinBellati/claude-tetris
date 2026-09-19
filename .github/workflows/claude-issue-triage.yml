@@ -39,5 +39,5 @@ jobs:
           allowed_non_write_users: "*"
           prompt: "/triage-issue REPO: ${{ github.repository }} ISSUE_NUMBER: ${{ github.event.issue.number }}"
           claude_args: >-
-            --max-turns 20
-            --allowedTools "Read,Grep,Glob,Bash(gh label list:*),Bash(gh issue view:*),Bash(./scripts/edit-issue-labels.sh:*),Bash(./scripts/upsert-issue-comment.sh:*)"
+            --max-turns 30
+            --allowedTools "Read,Grep,Glob,Write,Bash(gh label list:*),Bash(gh issue view:*),Bash(./scripts/edit-issue-labels.sh:*),Bash(./scripts/upsert-issue-comment.sh:*)"
