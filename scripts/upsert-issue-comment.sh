@@ -44,10 +44,10 @@ EXISTING_ID=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${ISSUE}/comments" --pag
 
 if [[ -n "$EXISTING_ID" ]]; then
   gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${EXISTING_ID}" \
-    -f body=@"$TMP_BODY" >/dev/null
+    -F body=@"$TMP_BODY" >/dev/null
   echo "Updated existing triage comment (id $EXISTING_ID) on issue #$ISSUE"
 else
   gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${ISSUE}/comments" \
-    -f body=@"$TMP_BODY" >/dev/null
+    -F body=@"$TMP_BODY" >/dev/null
   echo "Created new triage comment on issue #$ISSUE"
 fi
