@@ -1,5 +1,5 @@
 ---
-allowed-tools: Read, Grep, Glob, Bash(gh label list:*), Bash(gh issue view:*), Bash(./scripts/edit-issue-labels.sh:*), Bash(./scripts/upsert-issue-comment.sh:*)
+allowed-tools: Read, Grep, Glob, Write, Bash(gh label list:*), Bash(gh issue view:*), Bash(./scripts/edit-issue-labels.sh:*), Bash(./scripts/upsert-issue-comment.sh:*)
 description: Analiza un issue, aplica labels y publica un diagnóstico técnico
 ---
 
@@ -60,8 +60,8 @@ cualquier label que no exista en el repo.)
 
 ### 3. Escribir el diagnóstico
 
-Redactá el diagnóstico en un archivo temporal (por ejemplo `/tmp/triage-comment.md`) con esta
-estructura exacta, en español, y publicalo con
+Redactá el diagnóstico y guardalo con la herramienta `Write` en un archivo temporal (por ejemplo
+`/tmp/triage-comment.md`) con esta estructura exacta, en español, y publicalo con
 `./scripts/upsert-issue-comment.sh /tmp/triage-comment.md`:
 
 ```markdown
