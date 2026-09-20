@@ -80,11 +80,14 @@ let gridLineColor = '#22222e';
 // Cada skin define su paleta y su propia función de dibujado de bloque; drawBlock()
 // delega en la skin activa. Las funciones drawBlock* se declaran más abajo, pero al
 // ser function declarations quedan "hoisteadas" y ya están disponibles acá.
+// bombOpts define cómo se ve la Bomba en cada skin (ver drawBombIcon); el dispatch
+// a la Bomba vive una sola vez en drawBlock(), no en cada drawBlock<Skin>, así que
+// una skin nueva sin bombOpts simplemente hereda el look default (sigue distinguible).
 const SKINS = {
-  retro: { label: 'Retro', bodyClass: null, colors: COLORS, drawBlock: drawBlockRetro },
-  neon: { label: 'Neon', bodyClass: 'skin-neon', colors: NEON_COLORS, drawBlock: drawBlockNeon },
-  pastel: { label: 'Pastel', bodyClass: 'skin-pastel', colors: PASTEL_COLORS, drawBlock: drawBlockPastel },
-  pixel: { label: 'Pixel art', bodyClass: 'skin-pixel', colors: COLORS, drawBlock: drawBlockPixel },
+  retro: { label: 'Retro', bodyClass: null, colors: COLORS, drawBlock: drawBlockRetro, bombOpts: {} },
+  neon: { label: 'Neon', bodyClass: 'skin-neon', colors: NEON_COLORS, drawBlock: drawBlockNeon, bombOpts: { glow: true } },
+  pastel: { label: 'Pastel', bodyClass: 'skin-pastel', colors: PASTEL_COLORS, drawBlock: drawBlockPastel, bombOpts: { rounded: true, inset: 2 } },
+  pixel: { label: 'Pixel art', bodyClass: 'skin-pixel', colors: COLORS, drawBlock: drawBlockPixel, bombOpts: { texture: true } },
 };
 const SKIN_BODY_CLASSES = Object.values(SKINS).map(s => s.bodyClass).filter(Boolean);
 
@@ -94,11 +97,31 @@ function refreshGridLineColor() {
   gridLineColor = getComputedStyle(document.body).getPropertyValue('--grid-line-color').trim();
 }
 
+// localStorage puede no estar disponible (navegación privada estricta, page servida
+// como file://, políticas del navegador) y lanzar en vez de simplemente no persistir.
+// Si eso pasa acá arriba, antes de definir init()/el listener de teclado, el script
+// entero se corta y el juego queda inutilizable. Por eso todo acceso pasa por acá.
+function safeStorageGet(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeStorageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // sin persistencia disponible: la preferencia solo dura la sesión actual
+  }
+}
+
 function applyTheme(theme) {
   document.body.classList.toggle('light', theme === 'light');
   refreshGridLineColor();
   themeToggleBtn.textContent = theme === 'light' ? '☀️ Claro' : '🌙 Oscuro';
-  localStorage.setItem('theme', theme);
+  safeStorageSet('theme', theme);
 }
 
 function applySkin(name) {
@@ -108,7 +131,7 @@ function applySkin(name) {
   if (activeSkin.bodyClass) document.body.classList.add(activeSkin.bodyClass);
   refreshGridLineColor();
   if (skinSelect) skinSelect.value = key;
-  localStorage.setItem(SKIN_STORAGE_KEY, key);
+  safeStorageSet(SKIN_STORAGE_KEY, key);
 }
 
 themeToggleBtn.addEventListener('click', () => {
@@ -117,8 +140,8 @@ themeToggleBtn.addEventListener('click', () => {
 
 skinSelect.addEventListener('change', () => applySkin(skinSelect.value));
 
-applyTheme(localStorage.getItem('theme') || 'dark');
-applySkin(localStorage.getItem(SKIN_STORAGE_KEY) || 'retro');
+applyTheme(safeStorageGet('theme') || 'dark');
+applySkin(safeStorageGet(SKIN_STORAGE_KEY) || 'retro');
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -267,10 +290,16 @@ function updateHUD() {
   levelEl.textContent = level;
 }
 
+// El dispatch de la Bomba vive acá, una sola vez, en vez de repetirse en cada
+// drawBlock<Skin> — así una skin nueva no puede "olvidarse" de manejarla.
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
   context.globalAlpha = alpha ?? 1;
-  activeSkin.drawBlock(context, x, y, colorIndex, size);
+  if (colorIndex === BOMB_TYPE) {
+    drawBombIcon(context, x, y, size, activeSkin.bombOpts);
+  } else {
+    activeSkin.drawBlock(context, x, y, colorIndex, size);
+  }
   context.globalAlpha = 1;
 }
 
@@ -284,14 +313,33 @@ function roundedRectPath(context, x, y, w, h, r) {
   context.closePath();
 }
 
-function drawPixelTexture(context, px, py, s, shadeColor) {
-  const cell = Math.max(3, Math.floor(s / 5));
-  context.fillStyle = shadeColor;
-  for (let i = 0; i < s; i += cell * 2) {
-    for (let j = 0; j < s; j += cell * 2) {
-      context.fillRect(px + i, py + j, cell, cell);
+// La textura pixel-art es estática por tamaño+color, así que se dibuja una sola vez
+// en un canvas off-screen y se reutiliza con drawImage en vez de recalcular ~9
+// fillRect por bloque en cada frame (el tablero puede tener ~200 bloques visibles).
+const pixelTextureCache = new Map();
+
+function getPixelTextureTile(s, shadeColor) {
+  const key = s + '|' + shadeColor;
+  let tile = pixelTextureCache.get(key);
+  if (!tile) {
+    tile = document.createElement('canvas');
+    tile.width = s;
+    tile.height = s;
+    const tileCtx = tile.getContext('2d');
+    const cell = Math.max(3, Math.floor(s / 5));
+    tileCtx.fillStyle = shadeColor;
+    for (let i = 0; i < s; i += cell * 2) {
+      for (let j = 0; j < s; j += cell * 2) {
+        tileCtx.fillRect(i, j, cell, cell);
+      }
     }
+    pixelTextureCache.set(key, tile);
   }
+  return tile;
+}
+
+function drawPixelTexture(context, px, py, s, shadeColor) {
+  context.drawImage(getPixelTextureTile(s, shadeColor), px, py);
 }
 
 // Look de la bomba compartido entre skins (bloque oscuro + borde rojo + 💣) con
@@ -332,10 +380,6 @@ function drawBombIcon(context, x, y, size, opts = {}) {
 
 // ---- Skin: Retro (look original) ----
 function drawBlockRetro(context, x, y, colorIndex, size) {
-  if (colorIndex === BOMB_TYPE) {
-    drawBombIcon(context, x, y, size);
-    return;
-  }
   context.fillStyle = SKINS.retro.colors[colorIndex];
   context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
   // highlight
@@ -345,10 +389,6 @@ function drawBlockRetro(context, x, y, colorIndex, size) {
 
 // ---- Skin: Neon (fondo negro + glow) ----
 function drawBlockNeon(context, x, y, colorIndex, size) {
-  if (colorIndex === BOMB_TYPE) {
-    drawBombIcon(context, x, y, size, { glow: true });
-    return;
-  }
   const color = SKINS.neon.colors[colorIndex];
   context.shadowBlur = 14;
   context.shadowColor = color;
@@ -362,10 +402,6 @@ function drawBlockNeon(context, x, y, colorIndex, size) {
 
 // ---- Skin: Pastel (colores suaves + bordes redondeados) ----
 function drawBlockPastel(context, x, y, colorIndex, size) {
-  if (colorIndex === BOMB_TYPE) {
-    drawBombIcon(context, x, y, size, { rounded: true, inset: 2 });
-    return;
-  }
   const px = x * size + 1, py = y * size + 1, s = size - 2;
   roundedRectPath(context, px, py, s, s, 6);
   context.fillStyle = SKINS.pastel.colors[colorIndex];
@@ -377,10 +413,6 @@ function drawBlockPastel(context, x, y, colorIndex, size) {
 
 // ---- Skin: Pixel art (textura tipo dithering 8-bit) ----
 function drawBlockPixel(context, x, y, colorIndex, size) {
-  if (colorIndex === BOMB_TYPE) {
-    drawBombIcon(context, x, y, size, { texture: true });
-    return;
-  }
   const px = x * size + 1, py = y * size + 1, s = size - 2;
   context.fillStyle = SKINS.pixel.colors[colorIndex];
   context.fillRect(px, py, s, s);
