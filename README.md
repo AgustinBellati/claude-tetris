@@ -22,9 +22,11 @@ Implementación del clásico **Tetris** en JavaScript vanilla, usando HTML5 Canv
     - [2. `style.css`](#2-stylecss)
     - [3. `game.js`](#3-gamejs)
     - [Flujo del juego](#flujo-del-juego)
+  - [Tabla de records local](#tabla-de-records-local)
   - [Tecnologías](#tecnologías)
   - [Estructura del proyecto](#estructura-del-proyecto)
   - [Personalización](#personalización)
+  - [Menú de pausa](#menú-de-pausa)
   - [Automatizaciones: triage de issues con Claude](#automatizaciones-triage-de-issues-con-claude)
   - [Licencia](#licencia)
 
@@ -44,7 +46,14 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 - **Niveles** que aumentan cada 10 líneas y aceleran la caída.
 - **Pieza especial Bomba** 💣: cada 10 líneas despejadas, la siguiente pieza en la vista previa
   es una bomba; al fijarla, destruye un área 3×3 del tablero centrada en su celda.
-- **Pausa** y **Game Over** con opción de reinicio.
+- **Skins visuales**: 4 temas (Retro, Neon, Pastel, Pixel art) que cambian la paleta y el
+  dibujado de los bloques sin recargar la página.
+- **Menú de pausa** completo: reanudar, reiniciar, ver controles y elegir nivel inicial (1–15,
+  persistido en `localStorage`).
+- **Game Over** con opción de reinicio.
+- **Tabla de records local**: guarda el top 5 de puntuaciones (con nombre) en `localStorage`,
+  resalta si la partida actual entra en el ranking y muestra el mejor combo y la mejor jugada
+  (líneas despejadas de una sola vez) tanto en la pantalla de inicio como en el game over.
 
 ---
 
@@ -87,7 +96,7 @@ Después abre `http://localhost:8000` en el navegador.
 | `↑` o `X` | Rotar la pieza en sentido horario |
 | `↓`       | Soft drop (bajar más rápido)      |
 | `Espacio` | Hard drop (caída instantánea)     |
-| `P`       | Pausar / reanudar                 |
+| `P` / `Esc` | Pausar / reanudar (abre el menú de pausa) |
 
 ---
 
@@ -101,7 +110,12 @@ Define la estructura visual:
 
 - Un `<canvas id="board">` de **300 × 600** píxeles donde se renderiza el tablero.
 - Un panel lateral con `SCORE`, `LINES`, `LEVEL`, vista de la siguiente pieza y la lista de controles.
-- Un overlay para los estados **PAUSA** y **GAME OVER**.
+- Un overlay para el estado **GAME OVER** (que también incluye las estadísticas de la partida, un
+  formulario para guardar el nombre si hay nuevo record, y la tabla de top 5) y otro independiente
+  (`#pause-menu`) para el **menú de pausa**.
+- Una **pantalla de inicio** (`#start-screen`), visible antes de arrancar la primera partida, con
+  el top 5 de puntuaciones, el mejor combo/mejor jugada históricos, el botón para jugar y el botón
+  para resetear los records.
 
 ### 2. `style.css`
 
@@ -125,6 +139,21 @@ Contiene toda la lógica del juego. A grandes rasgos:
   despejadas). Al fijarse (`lockPiece`), en vez de fusionarse con el tablero como una pieza normal,
   dispara `explodeBomb`, que vacía las celdas del área 3×3 centrada en su posición y suma puntos
   por cada celda destruida. Se dibuja con un icono distintivo (💣) en `drawBlock`.
+- **Skins**: el objeto `SKINS` define 4 temas — `retro` (look original), `neon` (fondo negro y
+  glow vía `context.shadowBlur`), `pastel` (colores suaves y bloques con esquinas redondeadas)
+  y `pixel` (textura tipo dithering 8-bit) — cada uno con su paleta y su propia función de
+  dibujado de bloque. `drawBlock` delega en la skin activa (`activeSkin`); la pieza Bomba
+  mantiene su look distintivo (bloque oscuro, borde rojo, 💣) con variaciones menores por skin
+  para no perder identidad. El cambio de skin se aplica al instante (sin recargar), toggleando
+  una clase en `body` (`skin-neon` / `skin-pastel` / `skin-pixel`, análoga a `body.light` para
+  el modo claro/oscuro) y persiste en `localStorage` bajo la key `tetris-skin`.
+- **Combo y mejor jugada**: `combo` cuenta los locks consecutivos que despejan al menos una línea
+  (se resetea en `lockPiece` cuando un lock no despeja ninguna); `maxCombo` y `maxLinesInOneClear`
+  (1 a 4 líneas) guardan los máximos de la partida y se actualizan en `clearLines`. La pieza Bomba
+  no pasa por `clearLines`, así que es neutral para el combo: no lo rompe ni lo suma.
+- **Tabla de records** (`loadHighScores`/`saveHighScores`/`addHighScore`): persiste el top 5 en
+  `localStorage` bajo la key `tetris-highscores`, como un array de objetos
+  `{ name, score, lines, maxCombo, maxLinesInOneClear, date }`.
 
 ### Flujo del juego
 
@@ -146,6 +175,26 @@ init()
 
 Cuando una pieza recién generada ya colisiona al aparecer (`spawn`), se dispara `endGame()` y se muestra el overlay de **Game Over**.
 
+Ver la sección [Menú de pausa](#menú-de-pausa) para el detalle de `togglePause`, `openPauseMenu` y `closePauseMenu`.
+
+---
+
+## Tabla de records local
+
+El juego guarda el top 5 de puntuaciones en `localStorage` (key `tetris-highscores`, sin backend
+ni servidor):
+
+- **Pantalla de inicio** (`showStartScreen`): antes de la primera partida se muestra el top 5, el
+  mejor combo histórico y la mejor jugada histórica (calculados sobre las entradas guardadas), un
+  botón **Jugar** que arranca `init()` y un botón **Resetear records** (`resetHighScores`) que
+  borra la key de `localStorage` y vacía la tabla.
+- **Game over** (`endGame`): muestra la puntuación, las líneas totales, el mejor combo y la mejor
+  jugada de esa partida. Si la puntuación entra en el top 5 (`qualifiesForHighScore`), aparece un
+  formulario para ingresar el nombre; al guardar (`saveCurrentScore`) la entrada se inserta,
+  reordena y recorta a 5 (`addHighScore`), y la fila nueva se resalta en la tabla
+  (clase `highscore-new`).
+- Cada entrada guardada es un objeto `{ name, score, lines, maxCombo, maxLinesInOneClear, date }`.
+
 ---
 
 ## Tecnologías
@@ -166,7 +215,7 @@ Cuando una pieza recién generada ya colisiona al aparecer (`spawn`), se dispara
 03-tetris/
 ├── index.html      # Estructura del DOM y canvas
 ├── style.css       # Estilos del juego (dark theme)
-├── game.js         # Toda la lógica del Tetris (~300 líneas)
+├── game.js         # Toda la lógica del Tetris (~780 líneas)
 └── README.md
 ```
 
@@ -184,8 +233,38 @@ Algunos parámetros fáciles de tunear en `game.js`:
 | `COLORS`       | Paleta de colores por tipo de pieza      | 7 colores             |
 | `LINE_SCORES`  | Puntos por 1, 2, 3 o 4 líneas eliminadas | `[0,100,300,500,800]` |
 | `dropInterval` | Velocidad inicial de caída en ms         | `1000`                |
+| `MAX_HIGHSCORES` | Cantidad de puestos en la tabla de records | `5`                 |
+| `SKINS`        | Temas visuales disponibles (paleta + dibujado de bloque) | `retro`, `neon`, `pastel`, `pixel` |
 
 > Si cambias `COLS`, `ROWS` o `BLOCK`, recuerda ajustar también `width` y `height` del `<canvas id="board">` en `index.html` para que coincida (`COLS × BLOCK` × `ROWS × BLOCK`).
+
+---
+
+## Menú de pausa
+
+Al pausar con `P` o `Esc` se abre un overlay propio (`#pause-menu`, independiente del overlay de
+**Game Over**) con cuatro opciones:
+
+- **Reanudar** — cierra el menú y retoma el juego donde quedó.
+- **Reiniciar** — llama a `init()` directamente, sin recargar la página.
+- **Ver controles** — dentro del propio menú, cambia al panel `#pause-controls-panel` con la lista
+  de teclas; **Volver** regresa al panel principal.
+- **Nivel inicial** — un `<select>` (niveles 1 a 15) que define con qué nivel arranca la próxima
+  partida. El valor elegido se persiste en `localStorage` bajo la key `tetris-start-level`, con el
+  mismo patrón que usa `applyTheme` para el modo claro/oscuro. Cambiarlo a mitad de una partida
+  no afecta la partida en curso, solo la siguiente (ver `gameStartLevel` abajo).
+
+Mientras el menú está abierto (`paused === true`), el listener de `keydown` bloquea flechas, `X` y
+`Espacio` con `e.preventDefault()` — esto evita tanto que la pieza se mueva como que `Espacio`
+dispare un click nativo sobre el botón que tenga el foco. Excepción: si el foco está en el
+`<select>` de nivel inicial, sus propias flechas/Space no se bloquean, para no romper su
+navegación de opciones nativa del navegador.
+
+El nivel inicial afecta el cálculo de nivel en juego mediante dos variables separadas: `startLevel`
+(lo elegido en el selector, para la próxima partida) y `gameStartLevel` (una copia fijada en
+`init()` con la que arrancó la partida en curso). `clearLines()` calcula
+`level = gameStartLevel + Math.floor(lines / 10)` usando siempre esta segunda variable, para que
+tocar el selector durante una partida no altere su nivel/velocidad ya en marcha.
 
 ---
 

@@ -23,6 +23,15 @@
   --restart-color: #0f0f17;
   --restart-hover: #9bbdff;
   --grid-line-color: #22222e;
+  --highscore-highlight-bg: rgba(255, 213, 79, 0.18);
+  --highscore-highlight-color: #ffd54f;
+  --input-bg: #22223a;
+  --input-border: #3a3a5a;
+  --input-color: #e0e0e0;
+  --secondary-btn-bg: #22223a;
+  --secondary-btn-color: #aaa;
+  --secondary-btn-border: #3a3a5a;
+  --secondary-btn-hover: #3a3a5a;
 }
 
 body.light {
@@ -44,6 +53,58 @@ body.light {
   --restart-color: #ffffff;
   --restart-hover: #5b7bfb;
   --grid-line-color: #dcdce4;
+  --highscore-highlight-bg: rgba(255, 193, 7, 0.25);
+  --highscore-highlight-color: #b8860b;
+  --input-bg: #ffffff;
+  --input-border: #cacada;
+  --input-color: #1c1c28;
+  --secondary-btn-bg: #e8e8f0;
+  --secondary-btn-color: #444;
+  --secondary-btn-border: #cacada;
+  --secondary-btn-hover: #cacada;
+}
+
+/* ---- Skin: Neon ---- */
+body.skin-neon {
+  --board-bg: #000000;
+  --board-border: #143a3f;
+  --board-shadow: rgba(0, 229, 255, 0.35);
+  --grid-line-color: #103038;
+}
+
+/* La skin Neon prioriza su estética oscura sobre el modo claro: un tablero blanco
+   apagaría por completo el glow de los bloques. Forzamos el fondo oscuro también
+   cuando Neon se combina con el modo claro. */
+body.light.skin-neon {
+  --bg: #d8d8e0;
+  --board-bg: #050505;
+  --board-border: #143a3f;
+  --board-shadow: rgba(0, 229, 255, 0.3);
+  --grid-line-color: #103038;
+}
+
+/* ---- Skin: Pastel ---- */
+body.skin-pastel {
+  --board-bg: #2a2530;
+  --board-border: #453d4d;
+  --grid-line-color: #3a3340;
+}
+
+body.light.skin-pastel {
+  --board-bg: #fffaf6;
+  --board-border: #ecdde8;
+  --grid-line-color: #f0e2ea;
+}
+
+/* ---- Skin: Pixel art ---- */
+body.skin-pixel {
+  --board-bg: #202020;
+  --grid-line-color: #3a3a3a;
+}
+
+body.light.skin-pixel {
+  --board-bg: #e8e8e8;
+  --grid-line-color: #bbbbbb;
 }
 
 body {
@@ -130,6 +191,18 @@ body {
   background: var(--kbd-border);
 }
 
+/* ---- Selector de skin ---- */
+#skin-select {
+  background: var(--kbd-bg);
+  border: 1px solid var(--kbd-border);
+  color: var(--fg);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+}
+
 /* ---- Controles ---- */
 .controls ul {
   list-style: none;
@@ -193,7 +266,8 @@ kbd {
   color: var(--overlay-score-color);
 }
 
-#restart-btn {
+#restart-btn,
+#start-btn {
   margin-top: 8px;
   background: var(--restart-bg);
   color: var(--restart-color);
@@ -207,6 +281,244 @@ kbd {
   transition: background 0.15s;
 }
 
-#restart-btn:hover {
+#restart-btn:hover,
+#start-btn:hover {
   background: var(--restart-hover);
+}
+
+/* ---- Stats de fin de partida (combo / mejor jugada) ---- */
+#overlay-stats,
+#start-best-stats {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  color: var(--controls-color);
+}
+
+/* ---- Pantalla de inicio ---- */
+#start-title {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: 6px;
+  color: var(--value-color);
+}
+
+.start-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+/* ---- Tabla de records ---- */
+.highscores {
+  width: 220px;
+}
+
+.highscores-empty {
+  font-size: 12px;
+  color: var(--controls-color);
+}
+
+.highscores-list {
+  list-style: none;
+  counter-reset: hs-rank;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.highscore-row {
+  counter-increment: hs-rank;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.highscore-row::before {
+  content: counter(hs-rank) '.';
+  color: var(--label-color);
+  font-weight: 700;
+  width: 14px;
+}
+
+.highscore-row .hs-name {
+  flex: 1;
+  text-align: left;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.highscore-row .hs-score {
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 700;
+  color: var(--value-color);
+}
+
+.highscore-row.highscore-new {
+  background: var(--highscore-highlight-bg);
+}
+
+.highscore-row.highscore-new .hs-score {
+  color: var(--highscore-highlight-color);
+}
+
+/* ---- Formulario de nuevo record ---- */
+#highscore-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  width: 220px;
+}
+
+#highscore-form.hidden {
+  display: none;
+}
+
+#highscore-form label {
+  font-size: 12px;
+  color: var(--overlay-score-color);
+}
+
+#player-name {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--input-color);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  text-align: center;
+}
+
+#save-score-btn {
+  background: var(--restart-bg);
+  color: var(--restart-color);
+  border: none;
+  border-radius: 6px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: background 0.15s;
+}
+
+#save-score-btn:hover {
+  background: var(--restart-hover);
+}
+
+/* ---- Botón secundario (resetear records) ---- */
+#reset-scores-btn {
+  background: var(--secondary-btn-bg);
+  color: var(--secondary-btn-color);
+  border: 1px solid var(--secondary-btn-border);
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 12px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: background 0.15s;
+}
+
+#reset-scores-btn:hover {
+  background: var(--secondary-btn-hover);
+}
+
+/* ---- Menú de pausa ---- */
+.pause-box {
+  min-width: 220px;
+}
+
+.pause-title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  color: var(--overlay-title-color);
+}
+
+.pause-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.pause-panel.hidden {
+  display: none;
+}
+
+.pause-btn {
+  background: var(--kbd-bg);
+  color: var(--fg);
+  border: 1px solid var(--kbd-border);
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: background 0.15s;
+}
+
+.pause-btn:hover {
+  background: var(--kbd-border);
+}
+
+.pause-btn.primary {
+  background: var(--restart-bg);
+  color: var(--restart-color);
+  border: none;
+}
+
+.pause-btn.primary:hover {
+  background: var(--restart-hover);
+}
+
+.start-level-picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.start-level-picker label {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--label-color);
+  font-weight: 600;
+}
+
+#start-level-select {
+  background: var(--kbd-bg);
+  color: var(--fg);
+  border: 1px solid var(--kbd-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pause-controls-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.pause-controls-list li {
+  font-size: 12px;
+  color: var(--controls-color);
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
