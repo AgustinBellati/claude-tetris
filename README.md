@@ -42,6 +42,8 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 - **Vista previa** de la siguiente pieza.
 - **Sistema de puntuación** clásico de Tetris (100 / 300 / 500 / 800 multiplicado por nivel).
 - **Niveles** que aumentan cada 10 líneas y aceleran la caída.
+- **Pieza especial Bomba** 💣: cada 10 líneas despejadas, la siguiente pieza en la vista previa
+  es una bomba; al fijarla, destruye un área 3×3 del tablero centrada en su celda.
 - **Pausa** y **Game Over** con opción de reinicio.
 
 ---
@@ -118,6 +120,11 @@ Contiene toda la lógica del juego. A grandes rasgos:
 - **Puntuación**: usa la tabla clásica `[0, 100, 300, 500, 800]` multiplicada por el nivel actual; el hard drop suma 2 puntos por celda recorrida y el soft drop 1 punto por fila.
 - **Nivel y velocidad**: el nivel sube cada 10 líneas; la velocidad de caída se calcula como `max(100, 1000 − (level − 1) × 90)` milisegundos.
 - **Ghost piece** (`ghostY`): proyecta la posición final de la pieza actual hacia abajo y la dibuja con `globalAlpha = 0.2`.
+- **Pieza especial Bomba**: `randomPiece` genera una pieza de 1×1 de tipo `BOMB_TYPE` cuando hay
+  una bomba pendiente (`bombPending`, activado en `clearLines` cada `BOMB_LINE_INTERVAL` líneas
+  despejadas). Al fijarse (`lockPiece`), en vez de fusionarse con el tablero como una pieza normal,
+  dispara `explodeBomb`, que vacía las celdas del área 3×3 centrada en su posición y suma puntos
+  por cada celda destruida. Se dibuja con un icono distintivo (💣) en `drawBlock`.
 
 ### Flujo del juego
 

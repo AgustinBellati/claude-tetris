@@ -28,6 +28,12 @@ const PIECES = [
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
+// Pieza especial: bomba. Aparece cada BOMB_LINE_INTERVAL líneas despejadas y,
+// al fijarse, destruye un área 3×3 del tablero centrada en su celda.
+const BOMB_TYPE = 8;
+const BOMB_LINE_INTERVAL = 10;
+const BOMB_SCORE_PER_CELL = 15;
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -42,6 +48,7 @@ const restartBtn = document.getElementById('restart-btn');
 const themeToggleBtn = document.getElementById('theme-toggle');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let linesSinceBomb, bombPending;
 let gridLineColor = '#22222e';
 
 function applyTheme(theme) {
@@ -61,7 +68,16 @@ function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
+function createBombPiece() {
+  const shape = [[BOMB_TYPE]];
+  return { type: BOMB_TYPE, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0, isBomb: true };
+}
+
 function randomPiece() {
+  if (bombPending) {
+    bombPending = false;
+    return createBombPiece();
+  }
   const type = Math.floor(Math.random() * 7) + 1;
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
@@ -123,8 +139,28 @@ function clearLines() {
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    linesSinceBomb += cleared;
+    while (linesSinceBomb >= BOMB_LINE_INTERVAL) {
+      linesSinceBomb -= BOMB_LINE_INTERVAL;
+      bombPending = true;
+    }
     updateHUD();
   }
+}
+
+function explodeBomb() {
+  const cx = current.x;
+  const cy = current.y;
+  let destroyed = 0;
+  for (let r = cy - 1; r <= cy + 1; r++) {
+    for (let c = cx - 1; c <= cx + 1; c++) {
+      if (r < 0 || r >= ROWS || c < 0 || c >= COLS) continue;
+      if (board[r][c]) destroyed++;
+      board[r][c] = 0;
+    }
+  }
+  score += destroyed * BOMB_SCORE_PER_CELL;
+  updateHUD();
 }
 
 function ghostY() {
@@ -151,8 +187,12 @@ function softDrop() {
 }
 
 function lockPiece() {
-  merge();
-  clearLines();
+  if (current.isBomb) {
+    explodeBomb();
+  } else {
+    merge();
+    clearLines();
+  }
   spawn();
 }
 
@@ -173,8 +213,22 @@ function updateHUD() {
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
-  const color = COLORS[colorIndex];
   context.globalAlpha = alpha ?? 1;
+  if (colorIndex === BOMB_TYPE) {
+    context.fillStyle = '#1a1a1a';
+    context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+    context.strokeStyle = '#ff1744';
+    context.lineWidth = 2;
+    context.strokeRect(x * size + 3, y * size + 3, size - 6, size - 6);
+    context.fillStyle = '#ff1744';
+    context.font = `${Math.floor(size * 0.55)}px sans-serif`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText('💣', x * size + size / 2, y * size + size / 2 + 1);
+    context.globalAlpha = 1;
+    return;
+  }
+  const color = COLORS[colorIndex];
   context.fillStyle = color;
   context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
   // highlight
@@ -280,6 +334,8 @@ function init() {
   gameOver = false;
   dropInterval = 1000;
   dropAccum = 0;
+  linesSinceBomb = 0;
+  bombPending = false;
   lastTime = performance.now();
   next = randomPiece();
   spawn();
