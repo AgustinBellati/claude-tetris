@@ -25,6 +25,7 @@ Implementación del clásico **Tetris** en JavaScript vanilla, usando HTML5 Canv
   - [Tecnologías](#tecnologías)
   - [Estructura del proyecto](#estructura-del-proyecto)
   - [Personalización](#personalización)
+  - [Menú de pausa](#menú-de-pausa)
   - [Automatizaciones: triage de issues con Claude](#automatizaciones-triage-de-issues-con-claude)
   - [Licencia](#licencia)
 
@@ -44,7 +45,9 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 - **Niveles** que aumentan cada 10 líneas y aceleran la caída.
 - **Pieza especial Bomba** 💣: cada 10 líneas despejadas, la siguiente pieza en la vista previa
   es una bomba; al fijarla, destruye un área 3×3 del tablero centrada en su celda.
-- **Pausa** y **Game Over** con opción de reinicio.
+- **Menú de pausa** completo: reanudar, reiniciar, ver controles y elegir nivel inicial (1–15,
+  persistido en `localStorage`).
+- **Game Over** con opción de reinicio.
 
 ---
 
@@ -87,7 +90,7 @@ Después abre `http://localhost:8000` en el navegador.
 | `↑` o `X` | Rotar la pieza en sentido horario |
 | `↓`       | Soft drop (bajar más rápido)      |
 | `Espacio` | Hard drop (caída instantánea)     |
-| `P`       | Pausar / reanudar                 |
+| `P` / `Esc` | Pausar / reanudar (abre el menú de pausa) |
 
 ---
 
@@ -101,7 +104,7 @@ Define la estructura visual:
 
 - Un `<canvas id="board">` de **300 × 600** píxeles donde se renderiza el tablero.
 - Un panel lateral con `SCORE`, `LINES`, `LEVEL`, vista de la siguiente pieza y la lista de controles.
-- Un overlay para los estados **PAUSA** y **GAME OVER**.
+- Un overlay para el estado **GAME OVER** y otro independiente (`#pause-menu`) para el **menú de pausa**.
 
 ### 2. `style.css`
 
@@ -146,6 +149,8 @@ init()
 
 Cuando una pieza recién generada ya colisiona al aparecer (`spawn`), se dispara `endGame()` y se muestra el overlay de **Game Over**.
 
+Ver la sección [Menú de pausa](#menú-de-pausa) para el detalle de `togglePause`, `openPauseMenu` y `closePauseMenu`.
+
 ---
 
 ## Tecnologías
@@ -186,6 +191,34 @@ Algunos parámetros fáciles de tunear en `game.js`:
 | `dropInterval` | Velocidad inicial de caída en ms         | `1000`                |
 
 > Si cambias `COLS`, `ROWS` o `BLOCK`, recuerda ajustar también `width` y `height` del `<canvas id="board">` en `index.html` para que coincida (`COLS × BLOCK` × `ROWS × BLOCK`).
+
+---
+
+## Menú de pausa
+
+Al pausar con `P` o `Esc` se abre un overlay propio (`#pause-menu`, independiente del overlay de
+**Game Over**) con cuatro opciones:
+
+- **Reanudar** — cierra el menú y retoma el juego donde quedó.
+- **Reiniciar** — llama a `init()` directamente, sin recargar la página.
+- **Ver controles** — dentro del propio menú, cambia al panel `#pause-controls-panel` con la lista
+  de teclas; **Volver** regresa al panel principal.
+- **Nivel inicial** — un `<select>` (niveles 1 a 15) que define con qué nivel arranca la próxima
+  partida. El valor elegido se persiste en `localStorage` bajo la key `tetris-start-level`, con el
+  mismo patrón que usa `applyTheme` para el modo claro/oscuro. Cambiarlo a mitad de una partida
+  no afecta la partida en curso, solo la siguiente (ver `gameStartLevel` abajo).
+
+Mientras el menú está abierto (`paused === true`), el listener de `keydown` bloquea flechas, `X` y
+`Espacio` con `e.preventDefault()` — esto evita tanto que la pieza se mueva como que `Espacio`
+dispare un click nativo sobre el botón que tenga el foco. Excepción: si el foco está en el
+`<select>` de nivel inicial, sus propias flechas/Space no se bloquean, para no romper su
+navegación de opciones nativa del navegador.
+
+El nivel inicial afecta el cálculo de nivel en juego mediante dos variables separadas: `startLevel`
+(lo elegido en el selector, para la próxima partida) y `gameStartLevel` (una copia fijada en
+`init()` con la que arrancó la partida en curso). `clearLines()` calcula
+`level = gameStartLevel + Math.floor(lines / 10)` usando siempre esta segunda variable, para que
+tocar el selector durante una partida no altere su nivel/velocidad ya en marcha.
 
 ---
 
