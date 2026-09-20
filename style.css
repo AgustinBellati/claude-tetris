@@ -46,6 +46,49 @@ body.light {
   --grid-line-color: #dcdce4;
 }
 
+/* ---- Skin: Neon ---- */
+body.skin-neon {
+  --board-bg: #000000;
+  --board-border: #143a3f;
+  --board-shadow: rgba(0, 229, 255, 0.35);
+  --grid-line-color: #103038;
+}
+
+/* La skin Neon prioriza su estética oscura sobre el modo claro: un tablero blanco
+   apagaría por completo el glow de los bloques. Forzamos el fondo oscuro también
+   cuando Neon se combina con el modo claro. */
+body.light.skin-neon {
+  --bg: #d8d8e0;
+  --board-bg: #050505;
+  --board-border: #143a3f;
+  --board-shadow: rgba(0, 229, 255, 0.3);
+  --grid-line-color: #103038;
+}
+
+/* ---- Skin: Pastel ---- */
+body.skin-pastel {
+  --board-bg: #2a2530;
+  --board-border: #453d4d;
+  --grid-line-color: #3a3340;
+}
+
+body.light.skin-pastel {
+  --board-bg: #fffaf6;
+  --board-border: #ecdde8;
+  --grid-line-color: #f0e2ea;
+}
+
+/* ---- Skin: Pixel art ---- */
+body.skin-pixel {
+  --board-bg: #202020;
+  --grid-line-color: #3a3a3a;
+}
+
+body.light.skin-pixel {
+  --board-bg: #e8e8e8;
+  --grid-line-color: #bbbbbb;
+}
+
 body {
   background: var(--bg);
   color: var(--fg);
@@ -128,6 +171,18 @@ body {
 
 #theme-toggle:hover {
   background: var(--kbd-border);
+}
+
+/* ---- Selector de skin ---- */
+#skin-select {
+  background: var(--kbd-bg);
+  border: 1px solid var(--kbd-border);
+  color: var(--fg);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
 }
 
 /* ---- Controles ---- */

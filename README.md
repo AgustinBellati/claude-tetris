@@ -44,6 +44,8 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 - **Niveles** que aumentan cada 10 líneas y aceleran la caída.
 - **Pieza especial Bomba** 💣: cada 10 líneas despejadas, la siguiente pieza en la vista previa
   es una bomba; al fijarla, destruye un área 3×3 del tablero centrada en su celda.
+- **Skins visuales**: 4 temas (Retro, Neon, Pastel, Pixel art) que cambian la paleta y el
+  dibujado de los bloques sin recargar la página.
 - **Pausa** y **Game Over** con opción de reinicio.
 
 ---
@@ -125,6 +127,14 @@ Contiene toda la lógica del juego. A grandes rasgos:
   despejadas). Al fijarse (`lockPiece`), en vez de fusionarse con el tablero como una pieza normal,
   dispara `explodeBomb`, que vacía las celdas del área 3×3 centrada en su posición y suma puntos
   por cada celda destruida. Se dibuja con un icono distintivo (💣) en `drawBlock`.
+- **Skins**: el objeto `SKINS` define 4 temas — `retro` (look original), `neon` (fondo negro y
+  glow vía `context.shadowBlur`), `pastel` (colores suaves y bloques con esquinas redondeadas)
+  y `pixel` (textura tipo dithering 8-bit) — cada uno con su paleta y su propia función de
+  dibujado de bloque. `drawBlock` delega en la skin activa (`activeSkin`); la pieza Bomba
+  mantiene su look distintivo (bloque oscuro, borde rojo, 💣) con variaciones menores por skin
+  para no perder identidad. El cambio de skin se aplica al instante (sin recargar), toggleando
+  una clase en `body` (`skin-neon` / `skin-pastel` / `skin-pixel`, análoga a `body.light` para
+  el modo claro/oscuro) y persiste en `localStorage` bajo la key `tetris-skin`.
 
 ### Flujo del juego
 
@@ -166,7 +176,7 @@ Cuando una pieza recién generada ya colisiona al aparecer (`spawn`), se dispara
 03-tetris/
 ├── index.html      # Estructura del DOM y canvas
 ├── style.css       # Estilos del juego (dark theme)
-├── game.js         # Toda la lógica del Tetris (~300 líneas)
+├── game.js         # Toda la lógica del Tetris (~500 líneas)
 └── README.md
 ```
 
@@ -184,6 +194,7 @@ Algunos parámetros fáciles de tunear en `game.js`:
 | `COLORS`       | Paleta de colores por tipo de pieza      | 7 colores             |
 | `LINE_SCORES`  | Puntos por 1, 2, 3 o 4 líneas eliminadas | `[0,100,300,500,800]` |
 | `dropInterval` | Velocidad inicial de caída en ms         | `1000`                |
+| `SKINS`        | Temas visuales disponibles (paleta + dibujado de bloque) | `retro`, `neon`, `pastel`, `pixel` |
 
 > Si cambias `COLS`, `ROWS` o `BLOCK`, recuerda ajustar también `width` y `height` del `<canvas id="board">` en `index.html` para que coincida (`COLS × BLOCK` × `ROWS × BLOCK`).
 
