@@ -38,6 +38,31 @@ const BOMB_SCORE_PER_CELL = 15;
 const HIGHSCORES_KEY = 'tetris-highscores';
 const MAX_HIGHSCORES = 5;
 
+// Paletas alternativas para las skins Neon y Pastel (Retro y Pixel art reusan COLORS).
+const NEON_COLORS = [
+  null,
+  '#00e5ff', // I
+  '#ffea00', // O
+  '#e040fb', // T
+  '#00e676', // S
+  '#ff1744', // Z
+  '#2979ff', // J
+  '#ff9100', // L
+];
+
+const PASTEL_COLORS = [
+  null,
+  '#aee7f2', // I
+  '#fff2b8', // O
+  '#dcc0ea', // T
+  '#bde9c4', // S
+  '#f5bcbc', // Z
+  '#bcd0f0', // J
+  '#f6d7ae', // L
+];
+
+const SKIN_STORAGE_KEY = 'tetris-skin';
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -68,6 +93,7 @@ const pauseRestartBtn = document.getElementById('pause-restart-btn');
 const controlsToggleBtn = document.getElementById('controls-toggle-btn');
 const controlsBackBtn = document.getElementById('controls-back-btn');
 const startLevelSelect = document.getElementById('start-level-select');
+const skinSelect = document.getElementById('skin-select');
 
 const MIN_START_LEVEL = 1;
 const MAX_START_LEVEL = 15;
@@ -109,18 +135,71 @@ startLevelSelect.addEventListener('change', () => {
   localStorage.setItem('tetris-start-level', String(startLevel));
 });
 
+// Cada skin define su paleta y su propia función de dibujado de bloque; drawBlock()
+// delega en la skin activa. Las funciones drawBlock* se declaran más abajo, pero al
+// ser function declarations quedan "hoisteadas" y ya están disponibles acá.
+// bombOpts define cómo se ve la Bomba en cada skin (ver drawBombIcon); el dispatch
+// a la Bomba vive una sola vez en drawBlock(), no en cada drawBlock<Skin>, así que
+// una skin nueva sin bombOpts simplemente hereda el look default (sigue distinguible).
+const SKINS = {
+  retro: { label: 'Retro', bodyClass: null, colors: COLORS, drawBlock: drawBlockRetro, bombOpts: {} },
+  neon: { label: 'Neon', bodyClass: 'skin-neon', colors: NEON_COLORS, drawBlock: drawBlockNeon, bombOpts: { glow: true } },
+  pastel: { label: 'Pastel', bodyClass: 'skin-pastel', colors: PASTEL_COLORS, drawBlock: drawBlockPastel, bombOpts: { rounded: true, inset: 2 } },
+  pixel: { label: 'Pixel art', bodyClass: 'skin-pixel', colors: COLORS, drawBlock: drawBlockPixel, bombOpts: { texture: true } },
+};
+const SKIN_BODY_CLASSES = Object.values(SKINS).map(s => s.bodyClass).filter(Boolean);
+
+let activeSkin = SKINS.retro;
+
+function refreshGridLineColor() {
+  gridLineColor = getComputedStyle(document.body).getPropertyValue('--grid-line-color').trim();
+}
+
+// localStorage puede no estar disponible (navegación privada estricta, page servida
+// como file://, políticas del navegador) y lanzar en vez de simplemente no persistir.
+// Si eso pasa acá arriba, antes de definir init()/el listener de teclado, el script
+// entero se corta y el juego queda inutilizable. Por eso todo acceso pasa por acá.
+function safeStorageGet(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeStorageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // sin persistencia disponible: la preferencia solo dura la sesión actual
+  }
+}
+
 function applyTheme(theme) {
   document.body.classList.toggle('light', theme === 'light');
-  gridLineColor = getComputedStyle(document.body).getPropertyValue('--grid-line-color').trim();
+  refreshGridLineColor();
   themeToggleBtn.textContent = theme === 'light' ? '☀️ Claro' : '🌙 Oscuro';
-  localStorage.setItem('theme', theme);
+  safeStorageSet('theme', theme);
+}
+
+function applySkin(name) {
+  const key = Object.prototype.hasOwnProperty.call(SKINS, name) ? name : 'retro';
+  activeSkin = SKINS[key];
+  SKIN_BODY_CLASSES.forEach(cls => document.body.classList.remove(cls));
+  if (activeSkin.bodyClass) document.body.classList.add(activeSkin.bodyClass);
+  refreshGridLineColor();
+  if (skinSelect) skinSelect.value = key;
+  safeStorageSet(SKIN_STORAGE_KEY, key);
 }
 
 themeToggleBtn.addEventListener('click', () => {
   applyTheme(document.body.classList.contains('light') ? 'dark' : 'light');
 });
 
-applyTheme(localStorage.getItem('theme') || 'dark');
+skinSelect.addEventListener('change', () => applySkin(skinSelect.value));
+
+applyTheme(safeStorageGet('theme') || 'dark');
+applySkin(safeStorageGet(SKIN_STORAGE_KEY) || 'retro');
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -362,30 +441,136 @@ function updateHUD() {
   levelEl.textContent = level;
 }
 
+// El dispatch de la Bomba vive acá, una sola vez, en vez de repetirse en cada
+// drawBlock<Skin> — así una skin nueva no puede "olvidarse" de manejarla.
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
   context.globalAlpha = alpha ?? 1;
   if (colorIndex === BOMB_TYPE) {
-    context.fillStyle = '#1a1a1a';
-    context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-    context.strokeStyle = '#ff1744';
-    context.lineWidth = 2;
-    context.strokeRect(x * size + 3, y * size + 3, size - 6, size - 6);
-    context.fillStyle = '#ff1744';
-    context.font = `${Math.floor(size * 0.55)}px sans-serif`;
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText('💣', x * size + size / 2, y * size + size / 2 + 1);
-    context.globalAlpha = 1;
-    return;
+    drawBombIcon(context, x, y, size, activeSkin.bombOpts);
+  } else {
+    activeSkin.drawBlock(context, x, y, colorIndex, size);
   }
-  const color = COLORS[colorIndex];
-  context.fillStyle = color;
+  context.globalAlpha = 1;
+}
+
+function roundedRectPath(context, x, y, w, h, r) {
+  context.beginPath();
+  context.moveTo(x + r, y);
+  context.arcTo(x + w, y, x + w, y + h, r);
+  context.arcTo(x + w, y + h, x, y + h, r);
+  context.arcTo(x, y + h, x, y, r);
+  context.arcTo(x, y, x + w, y, r);
+  context.closePath();
+}
+
+// La textura pixel-art es estática por tamaño+color, así que se dibuja una sola vez
+// en un canvas off-screen y se reutiliza con drawImage en vez de recalcular ~9
+// fillRect por bloque en cada frame (el tablero puede tener ~200 bloques visibles).
+const pixelTextureCache = new Map();
+
+function getPixelTextureTile(s, shadeColor) {
+  const key = s + '|' + shadeColor;
+  let tile = pixelTextureCache.get(key);
+  if (!tile) {
+    tile = document.createElement('canvas');
+    tile.width = s;
+    tile.height = s;
+    const tileCtx = tile.getContext('2d');
+    const cell = Math.max(3, Math.floor(s / 5));
+    tileCtx.fillStyle = shadeColor;
+    for (let i = 0; i < s; i += cell * 2) {
+      for (let j = 0; j < s; j += cell * 2) {
+        tileCtx.fillRect(i, j, cell, cell);
+      }
+    }
+    pixelTextureCache.set(key, tile);
+  }
+  return tile;
+}
+
+function drawPixelTexture(context, px, py, s, shadeColor) {
+  context.drawImage(getPixelTextureTile(s, shadeColor), px, py);
+}
+
+// Look de la bomba compartido entre skins (bloque oscuro + borde rojo + 💣) con
+// pequeñas variaciones (glow, bordes redondeados, textura) para que combine con
+// cada skin sin perder su identidad de "pieza especial".
+function drawBombIcon(context, x, y, size, opts = {}) {
+  const inset = opts.inset ?? 3;
+  const px = x * size + 1;
+  const py = y * size + 1;
+  const s = size - 2;
+  if (opts.glow) {
+    context.shadowBlur = 14;
+    context.shadowColor = '#ff1744';
+  }
+  context.fillStyle = '#1a1a1a';
+  if (opts.rounded) {
+    roundedRectPath(context, px, py, s, s, 6);
+    context.fill();
+  } else {
+    context.fillRect(px, py, s, s);
+  }
+  context.shadowBlur = 0;
+  if (opts.texture) drawPixelTexture(context, px, py, s, 'rgba(255,255,255,0.08)');
+  context.strokeStyle = '#ff1744';
+  context.lineWidth = 2;
+  if (opts.rounded) {
+    roundedRectPath(context, x * size + inset, y * size + inset, size - inset * 2, size - inset * 2, 4);
+    context.stroke();
+  } else {
+    context.strokeRect(x * size + inset, y * size + inset, size - inset * 2, size - inset * 2);
+  }
+  context.fillStyle = '#ff1744';
+  context.font = `${Math.floor(size * 0.55)}px sans-serif`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText('💣', x * size + size / 2, y * size + size / 2 + 1);
+}
+
+// ---- Skin: Retro (look original) ----
+function drawBlockRetro(context, x, y, colorIndex, size) {
+  context.fillStyle = SKINS.retro.colors[colorIndex];
   context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
   // highlight
   context.fillStyle = 'rgba(255,255,255,0.12)';
   context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
-  context.globalAlpha = 1;
+}
+
+// ---- Skin: Neon (fondo negro + glow) ----
+function drawBlockNeon(context, x, y, colorIndex, size) {
+  const color = SKINS.neon.colors[colorIndex];
+  context.shadowBlur = 14;
+  context.shadowColor = color;
+  context.fillStyle = color;
+  context.fillRect(x * size + 2, y * size + 2, size - 4, size - 4);
+  context.shadowBlur = 0;
+  context.strokeStyle = 'rgba(255,255,255,0.6)';
+  context.lineWidth = 1;
+  context.strokeRect(x * size + 2, y * size + 2, size - 4, size - 4);
+}
+
+// ---- Skin: Pastel (colores suaves + bordes redondeados) ----
+function drawBlockPastel(context, x, y, colorIndex, size) {
+  const px = x * size + 1, py = y * size + 1, s = size - 2;
+  roundedRectPath(context, px, py, s, s, 6);
+  context.fillStyle = SKINS.pastel.colors[colorIndex];
+  context.fill();
+  context.strokeStyle = 'rgba(0,0,0,0.08)';
+  context.lineWidth = 1;
+  context.stroke();
+}
+
+// ---- Skin: Pixel art (textura tipo dithering 8-bit) ----
+function drawBlockPixel(context, x, y, colorIndex, size) {
+  const px = x * size + 1, py = y * size + 1, s = size - 2;
+  context.fillStyle = SKINS.pixel.colors[colorIndex];
+  context.fillRect(px, py, s, s);
+  drawPixelTexture(context, px, py, s, 'rgba(0,0,0,0.18)');
+  context.strokeStyle = 'rgba(0,0,0,0.35)';
+  context.lineWidth = 1;
+  context.strokeRect(px + 0.5, py + 0.5, s - 1, s - 1);
 }
 
 function drawGrid() {
