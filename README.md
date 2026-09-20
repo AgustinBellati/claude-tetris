@@ -22,6 +22,7 @@ Implementación del clásico **Tetris** en JavaScript vanilla, usando HTML5 Canv
     - [2. `style.css`](#2-stylecss)
     - [3. `game.js`](#3-gamejs)
     - [Flujo del juego](#flujo-del-juego)
+  - [Tabla de records local](#tabla-de-records-local)
   - [Tecnologías](#tecnologías)
   - [Estructura del proyecto](#estructura-del-proyecto)
   - [Personalización](#personalización)
@@ -45,6 +46,9 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 - **Pieza especial Bomba** 💣: cada 10 líneas despejadas, la siguiente pieza en la vista previa
   es una bomba; al fijarla, destruye un área 3×3 del tablero centrada en su celda.
 - **Pausa** y **Game Over** con opción de reinicio.
+- **Tabla de records local**: guarda el top 5 de puntuaciones (con nombre) en `localStorage`,
+  resalta si la partida actual entra en el ranking y muestra el mejor combo y la mejor jugada
+  (líneas despejadas de una sola vez) tanto en la pantalla de inicio como en el game over.
 
 ---
 
@@ -101,7 +105,12 @@ Define la estructura visual:
 
 - Un `<canvas id="board">` de **300 × 600** píxeles donde se renderiza el tablero.
 - Un panel lateral con `SCORE`, `LINES`, `LEVEL`, vista de la siguiente pieza y la lista de controles.
-- Un overlay para los estados **PAUSA** y **GAME OVER**.
+- Un overlay para los estados **PAUSA** y **GAME OVER**, que en el caso de game over también incluye
+  las estadísticas de la partida, un formulario para guardar el nombre si hay nuevo record, y la
+  tabla de top 5.
+- Una **pantalla de inicio** (`#start-screen`), visible antes de arrancar la primera partida, con
+  el top 5 de puntuaciones, el mejor combo/mejor jugada históricos, el botón para jugar y el botón
+  para resetear los records.
 
 ### 2. `style.css`
 
@@ -125,6 +134,13 @@ Contiene toda la lógica del juego. A grandes rasgos:
   despejadas). Al fijarse (`lockPiece`), en vez de fusionarse con el tablero como una pieza normal,
   dispara `explodeBomb`, que vacía las celdas del área 3×3 centrada en su posición y suma puntos
   por cada celda destruida. Se dibuja con un icono distintivo (💣) en `drawBlock`.
+- **Combo y mejor jugada**: `combo` cuenta los locks consecutivos que despejan al menos una línea
+  (se resetea en `lockPiece` cuando un lock no despeja ninguna); `maxCombo` y `maxLinesInOneClear`
+  (1 a 4 líneas) guardan los máximos de la partida y se actualizan en `clearLines`. La pieza Bomba
+  no pasa por `clearLines`, así que es neutral para el combo: no lo rompe ni lo suma.
+- **Tabla de records** (`loadHighScores`/`saveHighScores`/`addHighScore`): persiste el top 5 en
+  `localStorage` bajo la key `tetris-highscores`, como un array de objetos
+  `{ name, score, lines, maxCombo, maxLinesInOneClear, date }`.
 
 ### Flujo del juego
 
@@ -145,6 +161,24 @@ init()
 ```
 
 Cuando una pieza recién generada ya colisiona al aparecer (`spawn`), se dispara `endGame()` y se muestra el overlay de **Game Over**.
+
+---
+
+## Tabla de records local
+
+El juego guarda el top 5 de puntuaciones en `localStorage` (key `tetris-highscores`, sin backend
+ni servidor):
+
+- **Pantalla de inicio** (`showStartScreen`): antes de la primera partida se muestra el top 5, el
+  mejor combo histórico y la mejor jugada histórica (calculados sobre las entradas guardadas), un
+  botón **Jugar** que arranca `init()` y un botón **Resetear records** (`resetHighScores`) que
+  borra la key de `localStorage` y vacía la tabla.
+- **Game over** (`endGame`): muestra la puntuación, las líneas totales, el mejor combo y la mejor
+  jugada de esa partida. Si la puntuación entra en el top 5 (`qualifiesForHighScore`), aparece un
+  formulario para ingresar el nombre; al guardar (`saveCurrentScore`) la entrada se inserta,
+  reordena y recorta a 5 (`addHighScore`), y la fila nueva se resalta en la tabla
+  (clase `highscore-new`).
+- Cada entrada guardada es un objeto `{ name, score, lines, maxCombo, maxLinesInOneClear, date }`.
 
 ---
 
@@ -184,6 +218,7 @@ Algunos parámetros fáciles de tunear en `game.js`:
 | `COLORS`       | Paleta de colores por tipo de pieza      | 7 colores             |
 | `LINE_SCORES`  | Puntos por 1, 2, 3 o 4 líneas eliminadas | `[0,100,300,500,800]` |
 | `dropInterval` | Velocidad inicial de caída en ms         | `1000`                |
+| `MAX_HIGHSCORES` | Cantidad de puestos en la tabla de records | `5`                 |
 
 > Si cambias `COLS`, `ROWS` o `BLOCK`, recuerda ajustar también `width` y `height` del `<canvas id="board">` en `index.html` para que coincida (`COLS × BLOCK` × `ROWS × BLOCK`).
 
