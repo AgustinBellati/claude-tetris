@@ -60,6 +60,17 @@ const startBtn = document.getElementById('start-btn');
 const resetScoresBtn = document.getElementById('reset-scores-btn');
 const startHighscoresEl = document.getElementById('start-highscores');
 const startBestStatsEl = document.getElementById('start-best-stats');
+const pauseMenu = document.getElementById('pause-menu');
+const pauseMainPanel = document.getElementById('pause-main-panel');
+const pauseControlsPanel = document.getElementById('pause-controls-panel');
+const resumeBtn = document.getElementById('resume-btn');
+const pauseRestartBtn = document.getElementById('pause-restart-btn');
+const controlsToggleBtn = document.getElementById('controls-toggle-btn');
+const controlsBackBtn = document.getElementById('controls-back-btn');
+const startLevelSelect = document.getElementById('start-level-select');
+
+const MIN_START_LEVEL = 1;
+const MAX_START_LEVEL = 15;
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let linesSinceBomb, bombPending;
@@ -69,6 +80,34 @@ let gridLineColor = '#22222e';
 // la pantalla de inicio. Sin esto, `paused`/`gameOver` quedan `undefined` (falsy)
 // antes de esa primera partida y el keydown global operaría sobre estado inexistente.
 let started = false;
+// Nivel elegido para la PRÓXIMA partida (selector del menú de pausa).
+let startLevel = loadStartLevel();
+// Nivel con el que arrancó la partida EN CURSO: se fija en init() para que
+// cambiar el selector a mitad de partida no altere el nivel/velocidad actual.
+let gameStartLevel = startLevel;
+
+function loadStartLevel() {
+  const saved = parseInt(localStorage.getItem('tetris-start-level'), 10);
+  if (Number.isInteger(saved) && saved >= MIN_START_LEVEL && saved <= MAX_START_LEVEL) return saved;
+  return MIN_START_LEVEL;
+}
+
+function initialDropInterval(lvl) {
+  return Math.max(100, 1000 - (lvl - 1) * 90);
+}
+
+for (let lvl = MIN_START_LEVEL; lvl <= MAX_START_LEVEL; lvl++) {
+  const opt = document.createElement('option');
+  opt.value = lvl;
+  opt.textContent = lvl;
+  startLevelSelect.appendChild(opt);
+}
+startLevelSelect.value = startLevel;
+
+startLevelSelect.addEventListener('change', () => {
+  startLevel = parseInt(startLevelSelect.value, 10);
+  localStorage.setItem('tetris-start-level', String(startLevel));
+});
 
 function applyTheme(theme) {
   document.body.classList.toggle('light', theme === 'light');
@@ -243,8 +282,8 @@ function clearLines() {
   if (cleared) {
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
-    level = Math.floor(lines / 10) + 1;
-    dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    level = gameStartLevel + Math.floor(lines / 10);
+    dropInterval = initialDropInterval(level);
     linesSinceBomb += cleared;
     while (linesSinceBomb >= BOMB_LINE_INTERVAL) {
       linesSinceBomb -= BOMB_LINE_INTERVAL;
@@ -424,14 +463,25 @@ function togglePause() {
   if (!started || gameOver) return;
   paused = !paused;
   if (!paused) {
+    closePauseMenu();
     lastTime = performance.now();
     loop(lastTime);
   } else {
     cancelAnimationFrame(animId);
-    overlayTitle.textContent = 'PAUSA';
-    overlayScore.textContent = '';
-    overlay.classList.remove('hidden');
+    openPauseMenu();
   }
+}
+
+function openPauseMenu() {
+  // siempre arranca en el panel principal, no en el de controles
+  pauseControlsPanel.classList.add('hidden');
+  pauseMainPanel.classList.remove('hidden');
+  pauseMenu.classList.remove('hidden');
+  resumeBtn.focus();
+}
+
+function closePauseMenu() {
+  pauseMenu.classList.add('hidden');
 }
 
 function loop(ts) {
@@ -455,10 +505,11 @@ function init() {
   board = createBoard();
   score = 0;
   lines = 0;
-  level = 1;
+  gameStartLevel = startLevel;
+  level = gameStartLevel;
   paused = false;
   gameOver = false;
-  dropInterval = 1000;
+  dropInterval = initialDropInterval(gameStartLevel);
   dropAccum = 0;
   linesSinceBomb = 0;
   bombPending = false;
@@ -475,13 +526,24 @@ function init() {
   overlayStats.textContent = '';
   overlayHighscoresEl.innerHTML = '';
   highscoreForm.classList.add('hidden');
+  closePauseMenu();
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
 
 document.addEventListener('keydown', e => {
-  if (e.code === 'KeyP') { togglePause(); return; }
-  if (!started || paused || gameOver) return;
+  if (e.code === 'KeyP' || e.code === 'Escape') { togglePause(); return; }
+  if (!started || gameOver) return;
+  if (paused) {
+    // menú de pausa abierto: bloquear inputs de juego y evitar que Space
+    // dispare un click nativo sobre el botón que tenga el foco. Excepción:
+    // si el foco está en el <select> de nivel, dejarlo manejar sus propias
+    // flechas/Space (navegación nativa de opciones).
+    if (e.target !== startLevelSelect && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyX', 'Space'].includes(e.code)) {
+      e.preventDefault();
+    }
+    return;
+  }
   switch (e.code) {
     case 'ArrowLeft':
       if (!collide(current.shape, current.x - 1, current.y)) current.x--;
@@ -505,6 +567,18 @@ document.addEventListener('keydown', e => {
 });
 
 restartBtn.addEventListener('click', init);
+resumeBtn.addEventListener('click', togglePause);
+pauseRestartBtn.addEventListener('click', init);
+controlsToggleBtn.addEventListener('click', () => {
+  pauseMainPanel.classList.add('hidden');
+  pauseControlsPanel.classList.remove('hidden');
+  controlsBackBtn.focus();
+});
+controlsBackBtn.addEventListener('click', () => {
+  pauseControlsPanel.classList.add('hidden');
+  pauseMainPanel.classList.remove('hidden');
+  resumeBtn.focus();
+});
 
 saveScoreBtn.addEventListener('click', saveCurrentScore);
 playerNameInput.addEventListener('keydown', e => {
